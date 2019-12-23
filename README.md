@@ -11,10 +11,10 @@ Requirements
 
 You can install Smuploader:
 
-  git clone https://github.com/tortue-B/smuploader.git
-	cd smuploader
-	python3 -m venv env
-	source env/bin/activate
+  git clone https://github.com/tortue-B/smuploader.git  
+	cd smuploader  
+	python3 -m venv env  
+	source env/bin/activate  
   pip3 install -r requirements.txt
 
 You may need to patch rauth due to a Type issue:
