@@ -1,6 +1,6 @@
 from rauth.service import OAuth1Service
 import requests
-import httplib
+import http.client
 import httplib2
 import hashlib
 import urllib
@@ -8,16 +8,17 @@ import time
 import sys
 import os
 import json
-import ConfigParser
+import configparser
 import re
 import shutil
 
 class SmugMug(object):
     smugmug_api_base_url = 'https://api.smugmug.com/api/v2'
-    smugmug_upload_uri = 'http://upload.smugmug.com/'
-    smugmug_request_token_uri = 'http://api.smugmug.com/services/oauth/1.0a/getRequestToken'
-    smugmug_access_token_uri = 'http://api.smugmug.com/services/oauth/1.0a/getAccessToken'
-    smugmug_authorize_uri = 'http://api.smugmug.com/services/oauth/1.0a/authorize'
+    # changed all to https
+    smugmug_upload_uri = 'https://upload.smugmug.com/'
+    smugmug_request_token_uri = 'https://api.smugmug.com/services/oauth/1.0a/getRequestToken'
+    smugmug_access_token_uri = 'https://api.smugmug.com/services/oauth/1.0a/getAccessToken'
+    smugmug_authorize_uri = 'https://api.smugmug.com/services/oauth/1.0a/authorize'
     smugmug_api_version = 'v2'
 
     # put config in home dir under ~/.smugmug.cfg. TODO: make this a variable?
@@ -26,13 +27,13 @@ class SmugMug(object):
 
     def __init__(self, verbose = False):
         """
-        Constructor. 
+        Constructor.
         Loads the config file and initialises the smugmug service
         """
 
         self.verbose = verbose
-        
-        config_parser = ConfigParser.RawConfigParser()
+
+        config_parser = configparser.RawConfigParser()
         config_parser.read(SmugMug.smugmug_config)
         try:
             self.username = config_parser.get('SMUGMUG','username')
@@ -50,7 +51,7 @@ class SmugMug(object):
             request_token_url=self.smugmug_request_token_uri,
             access_token_url=self.smugmug_access_token_uri,
             authorize_url=self.smugmug_authorize_uri)
-            
+
         self.request_token, self.request_token_secret = self.smugmug_service.get_request_token(method='GET', params={'oauth_callback':'oob'})
         self.smugmug_session = self.smugmug_service.get_session((self.access_token, self.access_token_secret))
 
@@ -74,7 +75,7 @@ class SmugMug(object):
                                     request_token=self.request_token,
                                     request_token_secret=self.request_token_secret,
                                     params={'oauth_verifier': verifier})
-                                    
+
         return self.access_token, self.access_token_secret
 
     def request_once(self, method, url, params={}, headers={}, files={}, data=None, header_auth=False):
@@ -92,7 +93,7 @@ class SmugMug(object):
                         data=data,
                         header_auth=header_auth)
         if self.verbose == True:
-            print('RESPONSE DATA:\n' + str(response.content)[:2000] + (" ... " + str(response.content)[-2000:] if len(str(response.content)) > 2000 else ""))
+            print('RESPONSE DATA:\n' + str(response.content)[:100] + (" ... " + str(response.content)[-100:] if len(str(response.content)) > 200 else ""))
         try:
             data = json.loads(response.content)
         except Exception:
@@ -108,7 +109,7 @@ class SmugMug(object):
                 response = self.request_once(method, url, params, headers, files, data, header_auth)
                 if ('Code' in response and response['Code'] in [200, 201]) or ("stat" in response and response["stat"] in ["ok"]):
                     return response
-            except (requests.ConnectionError, requests.HTTPError, requests.URLRequired, requests.TooManyRedirects, requests.RequestException, httplib.IncompleteRead) as e:
+            except (requests.ConnectionError, requests.HTTPError, requests.URLRequired, requests.TooManyRedirects, requests.RequestException, http.client.IncompleteRead) as e:
                 if self.verbose == True:
                     print(sys.exc_info()[0])
             if self.verbose == True:
@@ -125,11 +126,11 @@ class SmugMug(object):
         Get a list of all albums in the account
         """
         albums = []
-        start = 0
+        start = 1
         stepsize = 100
         while(True):
             params = {'start': start, 'count': stepsize}
-            response = self.request('GET', self.smugmug_api_base_url + "/user/"+self.username+"!albums", params=params, headers={'Accept': 'application/json', 'Cache-Control': 'no-cache'})
+            response = self.request('GET', self.smugmug_api_base_url + "/user/"+self.username+"!albums", params=params, headers={'Accept': 'application/json'})
 
             for album in response['Response']['Album'] :
                 albums.append({"Title": album['Title'], "Uri": album["Uri"], "AlbumKey": album["AlbumKey"]})
@@ -173,13 +174,14 @@ class SmugMug(object):
 
         images = []
         start = 1
-        stepsize = 500
+        # changed stepsize from default of 500 which did not work w/current API limits 20181110
+        stepsize = 100
         while(True):
             params = {'start': start, 'count': stepsize}
             response = self.request('GET', self.smugmug_api_base_url + "/album/"+album_id+"!images", params=params, headers={'Accept': 'application/json'})
 
             for image in (response['Response']['AlbumImage'] if 'AlbumImage' in response['Response'] else []):
-                images.append({"ImageKey": image['ImageKey'], "Uri": image["Uri"], "FileName": image["FileName"], "ArchivedMD5": image["ArchivedMD5"], "OriginalSize": (image["OriginalSize"] if "OriginalSize" in image else None)})
+                images.append({"ImageKey": image['ImageKey'], "Uri": image["Uri"], "FileName": image["FileName"], "ArchivedMD5": image["ArchivedMD5"], "Uris": image["Uris"], "OriginalSize": (image["OriginalSize"] if "OriginalSize" in image else None)})
 
             if 'NextPage' in response['Response']['Pages']:
                 start += stepsize
@@ -223,12 +225,7 @@ class SmugMug(object):
         if self.verbose == True:
             print(json.dumps(response))
 
-        album_key = None
-        if "Response" in response and "Album" in response["Response"] and "AlbumKey" in response["Response"]["Album"]:
-            album_key = response["Response"]["Album"]["AlbumKey"]
-
-        return response, album_key
-
+        return response
 
     def get_album_info(self, album_id):
         """
@@ -245,7 +242,6 @@ class SmugMug(object):
         info['category_id'] = response['Album']['Category']['id']
         info['category_name'] = response['Album']['Category']['Name']
         return info
-
 
     ## Folders
 
@@ -316,8 +312,8 @@ class SmugMug(object):
         response = self.request('POST', self.smugmug_upload_uri,
             data=image_data,
             header_auth = True,
-            headers={'X-Smug-AlbumUri': "/api/v2/album/"+album_id, 
-                'X-Smug-Version':self.smugmug_api_version, 
+            headers={'X-Smug-AlbumUri': "/api/v2/album/"+album_id,
+                'X-Smug-Version':self.smugmug_api_version,
                 'X-Smug-ResponseType':'JSON',
                 'Content-MD5': hashlib.md5(image_data).hexdigest(),
                 'X-Smug-FileName':image_name,
@@ -341,7 +337,7 @@ class SmugMug(object):
             image_data.decode_content = True
             with open(image_path_temp, 'wb') as f:
                 shutil.copyfileobj(image_data, f)
-            
+
             # Checking the image
             image_data_local = SmugMug.load_image(image_path_temp)
             image_md5sum = hashlib.md5(image_data_local).hexdigest()
@@ -372,5 +368,3 @@ class SmugMug(object):
         except IOError as e:
             raise "I/O error({0}): {1}".format(e.errno, e.strerror)
         return None
-
-
