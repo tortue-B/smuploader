@@ -1,5 +1,7 @@
-Smuploader
+Smuploader (modified)
 ===========
+
+Some modifications by tortue-b to handle Python 3 and Python virtual environment
 
 This script is for uploading / downloading images from smugmug.com, using your command line. It uses OAuth for authentication.
 
@@ -7,26 +9,17 @@ This script is for uploading / downloading images from smugmug.com, using your c
 Requirements
 ------------
 
-The following python modules need to be installed:
-
-* requests [http://docs.python-requests.org]
-* rauth [https://github.com/litl/rauth]
-* httplib2 
-
-You can install the dependencies:
-
-	pip install rauth httplib2
-
 You can install Smuploader:
 
-    git clone https://github.com/marekrei/smuploader.git
+  git clone https://github.com/tortue-B/smuploader.git
 	cd smuploader
-	pip install .
-	
-If you are planning on working on this files, you might want to instal
-via symlink:
+	python3 -m venv env
+	source env/bin/activate
+  pip3 install -r requirements.txt
 
-    pip install -e .
+You may need to patch rauth due to a Type issue:
+
+  patch -p0 -i rauth.patch
 
 
 Files
@@ -60,7 +53,7 @@ Upload a whole directory as an album:
 Upload a whole directory, and manually set a new album name:
 
 	smuploader -a AlbumName path/to/album/*
-	
+
 Upload a directory, set password to "pass" and category to "Photos":
 
 	smuploader -p pass -c Photos path/to/album/
@@ -90,13 +83,13 @@ PyPi Details
 Packaging and uploading:
 
 Use twine (not python setup.py):
-	
+
 	pip install twine
-	
+
 	python setup.py sdist bdist_wheel
-	
+
 	twine upload dist/* --skip-existing
-	
+
 Don't forget to inc the version in setup.py!
 
 Copyright and License
@@ -104,6 +97,7 @@ Copyright and License
 
 This software is distributed under The MIT License (MIT)
 
+Original work
 Copyright (c) 2017 Marek Rei
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -123,4 +117,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
